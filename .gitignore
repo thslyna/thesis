@@ -1,0 +1,11 @@
+venv/
+data/
+results/
+logs/
+notebooks/
+report/
+__pycache__/
+*.png
+*.jpg
+*.jpeg
+.DS_Store

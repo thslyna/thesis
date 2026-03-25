@@ -1,0 +1,51 @@
+import os
+import pandas as pd
+import requests
+from datetime import datetime
+
+# Folder setup
+raw_dir = os.path.expanduser("~/thesis/data/raw/ibb_traffic_monthly")
+os.makedirs(raw_dir, exist_ok=True)
+
+# 💾 Output merged file
+out_path = os.path.expanduser("~/thesis/data/raw/ibb_hourly_traffic_all.csv")
+
+# 🧱 Dictionary of monthly datasets (we’ll extend this as you get more URLs)
+# You can add more months below once you copy more "dump" links
+datasets = {
+    "Ocak_2024": "https://data.ibb.gov.tr/datastore/dump/5fb30ee1-e079-4865-a8cd-16efe2be8352?bom=True",
+    # Example placeholder — replace with other month URLs like Şubat_2024, Mart_2024 etc.
+    # "Şubat_2024": "https://data.ibb.gov.tr/datastore/dump/db9c7fb3-e7f9-435a-92f4-1b917e357821?bom=True",
+    "Subat 2024": " 
+}
+
+all_dfs = []
+
+for month, url in datasets.items():
+    print(f"⬇️  Downloading {month} from {url}")
+    local_file = os.path.join(raw_dir, f"{month}.csv")
+
+    try:
+        resp = requests.get(url, timeout=60)
+        resp.raise_for_status()
+        with open(local_file, "wb") as f:
+            f.write(resp.content)
+        print(f"✅ Saved: {local_file}")
+    except Exception as e:
+        print(f"⚠️  Failed to download {month}: {e}")
+        continue
+
+    try:
+        df = pd.read_csv(local_file)
+        df["source_month"] = month
+        all_dfs.append(df)
+    except Exception as e:
+        print(f"⚠️  Error reading {local_file}: {e}")
+
+if all_dfs:
+    combined = pd.concat(all_dfs, ignore_index=True)
+    combined.to_csv(out_path, index=False)
+    print(f"\n✅ Combined dataset saved to: {out_path}")
+    print(f"📊 Total rows: {len(combined):,}")
+else:
+    print("⚠️ No data files were successfully merged.")
