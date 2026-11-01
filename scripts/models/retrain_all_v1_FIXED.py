@@ -4,6 +4,14 @@ import os
 print("🚀 RETRAINING ALL MODELS ON V1_IMPUTED_FIXED (LEAKAGE-FREE)\n")
 print("="*70)
 
+# 📁 Visualization output folder
+VISU_DIR = "/Users/lyna.thc/Desktop/thesis/visu"
+os.makedirs(VISU_DIR, exist_ok=True)
+
+# 📁 Results folder (optional but clean)
+RESULTS_DIR = "/Users/lyna.thc/Desktop/thesis/results"
+os.makedirs(RESULTS_DIR, exist_ok=True)
+
 # Define the models to retrain
 models = [
     ("Random Forest (tuned)", "RANDOM_FOREST_TUNED.py"),
@@ -28,7 +36,7 @@ for i, (model_name, script_name) in enumerate(models, 1):
     with open(script_path, 'r') as f:
         code = f.read()
     
-    # Replace ALL possible dataset path variations
+    # 🔁 Replace dataset paths
     replacements = [
         ('DATA_PATH = "/Users/lyna.thc/Desktop/thesis/data/processed/flights_with_weather_road_history.csv"', 
          f'DATA_PATH = "{new_dataset}"'),
@@ -42,7 +50,29 @@ for i, (model_name, script_name) in enumerate(models, 1):
     
     for old, new in replacements:
         code = code.replace(old, new)
-    
+
+    # 🧠 Inject visualization + saving logic
+    injection = f"""
+import os
+import matplotlib
+matplotlib.use('Agg')  # headless backend
+import matplotlib.pyplot as plt
+
+VISU_DIR = "{VISU_DIR}"
+RESULTS_DIR = "{RESULTS_DIR}"
+
+def save_plot(name):
+    path = os.path.join(VISU_DIR, name)
+    plt.savefig(path, bbox_inches='tight')
+    print(f"📊 Saved visualization: {{path}}")
+    plt.close()
+"""
+
+    code = injection + "\n" + code
+
+    # 🧠 Auto-replace plt.show() → save_plot
+    code = code.replace("plt.show()", "save_plot(f'{script_name}_plot.png')")
+
     # Create temporary script
     temp_script = f"/tmp/temp_{script_name}"
     with open(temp_script, 'w') as f:
@@ -67,12 +97,10 @@ for i, (model_name, script_name) in enumerate(models, 1):
         print(f"❌ Error training {model_name}: {e}\n")
     
     finally:
-        # Clean up temp file
         if os.path.exists(temp_script):
             os.remove(temp_script)
 
 print("\n" + "="*70)
-print("🎉 ALL MODELS RETRAINED ON CLEAN DATA (NO LEAKAGE)!")
+print("🎉 ALL MODELS RETRAINED + VISUALIZATIONS SAVED!")
 print("="*70)
-print("\nResults saved with _CLEAN suffix to distinguish from leaky versions!")
-
+print(f"\n📊 Visualizations → {VISU_DIR}")

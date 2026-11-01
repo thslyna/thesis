@@ -1,11 +1,10 @@
 venv/
 data/
-results/
 logs/
-notebooks/
-report/
 __pycache__/
-*.png
-*.jpg
-*.jpeg
 .DS_Store
+*.joblib
+*.pkl
+.env
+.env.*
+opensky_credentials.json

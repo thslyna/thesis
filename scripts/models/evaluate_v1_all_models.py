@@ -2,9 +2,10 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
@@ -17,15 +18,22 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     f1_score,
-    brier_score_loss
+    brier_score_loss,
+    roc_curve,
+    confusion_matrix,
+    ConfusionMatrixDisplay
 )
 
 # ===============================
 # PATHS
 # ===============================
 DATA_PATH = "/Users/lyna.thc/Desktop/thesis/data/processed/flights_with_weather_road_history.csv"
+
 OUT_DIR = "/Users/lyna.thc/Desktop/thesis/results/v1_full_evaluation"
+VISU_DIR = "/Users/lyna.thc/Desktop/thesis/visu"
+
 os.makedirs(OUT_DIR, exist_ok=True)
+os.makedirs(VISU_DIR, exist_ok=True)
 
 # ===============================
 # LOAD DATA
@@ -53,9 +61,6 @@ X = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
 numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
 categorical_features = X.select_dtypes(include=["object"]).columns.tolist()
 
-print("Numeric:", numeric_features)
-print("Categorical:", categorical_features)
-
 # ===============================
 # PREPROCESSING
 # ===============================
@@ -76,15 +81,11 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-print("Train:", X_train.shape)
-print("Test:", X_test.shape)
-
 # ===============================
-# DEFINE MODELS
+# MODELS
 # ===============================
 models = {
 
-    # Logistic Regression
     "Logistic Regression": LogisticRegression(
         max_iter=1000,
         solver="lbfgs",
@@ -92,13 +93,11 @@ models = {
         random_state=42
     ),
 
-    # Random Forest (untuned)
     "Random Forest (untuned)": RandomForestClassifier(
         random_state=42,
         n_jobs=-1
     ),
 
-    # Random Forest (tuned - YOUR REAL PARAMS)
     "Random Forest (tuned)": RandomForestClassifier(
         n_estimators=200,
         min_samples_split=5,
@@ -109,14 +108,12 @@ models = {
         n_jobs=-1
     ),
 
-    # XGBoost (untuned)
     "XGBoost (untuned)": XGBClassifier(
         random_state=42,
         eval_metric="logloss",
         use_label_encoder=False
     ),
 
-    # XGBoost (tuned - YOUR REAL PARAMS)
     "XGBoost (tuned)": XGBClassifier(
         n_estimators=200,
         max_depth=7,
@@ -132,27 +129,25 @@ models = {
 }
 
 # ===============================
-# EVALUATION LOOP
+# EVALUATION
 # ===============================
 results = []
 
-print("\nMODEL PERFORMANCE SUMMARY")
-print("=" * 80)
-
 for name, model in models.items():
 
-    pipe = Pipeline(
-        steps=[
-            ("prep", preprocessor),
-            ("model", model)
-        ]
-    )
+    print(f"\nTraining {name}...")
+
+    pipe = Pipeline([
+        ("prep", preprocessor),
+        ("model", model)
+    ])
 
     pipe.fit(X_train, y_train)
 
     y_pred = pipe.predict(X_test)
     y_prob = pipe.predict_proba(X_test)[:, 1]
 
+    # Metrics
     auc = roc_auc_score(y_test, y_prob)
     precision = precision_score(y_test, y_pred)
     recall = recall_score(y_test, y_pred)
@@ -168,8 +163,45 @@ for name, model in models.items():
         "brier_score": brier
     })
 
-    # Print LaTeX-ready row
-    print(f"{name:30s} & {auc:.3f} & {precision:.3f} & {recall:.3f} & {f1:.3f} & {brier:.3f} \\\\")
+    print(f"AUC: {auc:.3f}")
+
+    # ===============================
+    # ROC CURVE
+    # ===============================
+    fpr, tpr, _ = roc_curve(y_test, y_prob)
+
+    plt.figure()
+    plt.plot(fpr, tpr)
+    plt.plot([0, 1], [0, 1], linestyle="--")
+
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(f"ROC Curve - {name}")
+
+    plt.tight_layout()
+
+    roc_path = os.path.join(VISU_DIR, f"roc_{name.replace(' ', '_')}.png")
+    plt.savefig(roc_path)
+    plt.close()
+
+    print("Saved:", roc_path)
+
+    # ===============================
+    # CONFUSION MATRIX
+    # ===============================
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+
+    disp.plot()
+    plt.title(f"Confusion Matrix - {name}")
+
+    plt.tight_layout()
+
+    cm_path = os.path.join(VISU_DIR, f"cm_{name.replace(' ', '_')}.png")
+    plt.savefig(cm_path)
+    plt.close()
+
+    print("Saved:", cm_path)
 
 # ===============================
 # SAVE RESULTS
@@ -180,4 +212,4 @@ results_df.to_csv(os.path.join(OUT_DIR, "v1_model_comparison.csv"), index=False)
 with open(os.path.join(OUT_DIR, "v1_model_comparison.json"), "w") as f:
     json.dump(results, f, indent=4)
 
-print("\nResults saved to:", OUT_DIR)
+print("\nAll done. Results + visualizations saved.")

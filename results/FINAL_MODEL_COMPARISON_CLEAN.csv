@@ -1,0 +1,4 @@
+Model,ROC-AUC,Accuracy,Precision,Recall,F1-Score,Brier,FP,FN
+Random Forest (tuned),0.9706,0.9247,0.919,0.9942,0.9551,0.0548,106.0,7.0
+XGBoost (tuned),0.9321,,,,,,,
+XGBoost (untuned),0.9192,,,,,,,
